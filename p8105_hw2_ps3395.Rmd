@@ -1,0 +1,66 @@
+---
+title: "p8105_hw2_ps3395.Rmd"
+author: "PENG"
+date: "2023-10-01"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE)
+```
+
+```{r libraries}
+library(tidyverse)
+library(readxl)
+```
+
+# Problem 2
+
+### Read and clean data from *"202207 Trash Wheel Collection Data.xlsx"*
+
+```{r}
+#Read and clean the Mr. Trash Wheel sheet
+Mr_trash = 
+  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 1 ,range = "A2:N550") |>
+  janitor::clean_names() |>
+  drop_na(dumpster) |>
+  mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
+         trashID = "Mr")
+
+#Use a similar process to import, clean, and organize the data for Professor Trash Wheel and Gwynnda
+professor_trash = 
+  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 2 ,range = "A2:M97") |>
+  janitor::clean_names() |>
+  drop_na(dumpster)|>
+  mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
+         trashID = "professor")
+
+gwynnda_trash = 
+  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 4 ,range = "A2:K110") |>
+  janitor::clean_names() |>
+  drop_na(dumpster)|>
+  mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
+         trashID = "gwynnda")
+
+#finding same columns in three dataset
+common_col = Reduce(intersect, list(names(Mr_trash), names(professor_trash), names(gwynnda_trash)))
+
+#merge three dataset by same columns to a single tidy data
+merge_trash = merge(Mr_trash, professor_trash, by= common_col,all = TRUE) 
+merge_trash = merge(merge_trash, gwynnda_trash, by = common_col, all = TRUE)|>
+  janitor::clean_names()
+```
+
+#### Description 
+
+Three datasets are involved in Problem 2, including *"Mr."*, *"Professor"* and *"Gwynnda"* Trash Wheel. Which containing `r nrow(Mr_trash)`, `r nrow(professor_trash)`, and `r nrow(gwynnda_trash)` observations respectively. Moreover, there are `r length(common_col)` common variables involved in these three datasets, such as
+
+* `month`, `year` and `date` for recording the time.
+* `weight_tons` and `volume_cubic_yards` represent the weights and volumes of the trash.
+* `plastic_bottles`, `polystyrene` and `cigarette_butts` indicate trash amount in different types.
+* `homes_powered` represents the average time that electricity converted from garbage can be used by a household.
+
+Then merging these three datasets into one dataframe called *"merge_trash"*, which contains `r nrow(merge_trash)` observations and `r ncol(merge_trash)` variables. \newline
+
+For available data, the total weight of trash collected by Professor Trash Wheel was `r sum(pull(professor_trash, weight_tons))` tons, and the total number of cigarette butts collected by Gwynnda in July of 2021 was `r format(sum(pull(filter(gwynnda_trash, month == "July" , year == 2021),cigarette_butts)), big.mark = ",")`.
+
