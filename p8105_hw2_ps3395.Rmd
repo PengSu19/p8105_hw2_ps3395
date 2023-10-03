@@ -83,39 +83,37 @@ Let's talk about the 538 datasets. The `pols_month` data has `r nrow(pols_month)
 ```{r}
 #Read and clean the Mr. Trash Wheel sheet
 Mr_trash = 
-  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 1 ,range = "A2:N550") |>
+  readxl::read_excel("./data/202309 Trash Wheel Collection Data.xlsx", sheet = 1 ) |>
   janitor::clean_names() |>
   drop_na(dumpster) |>
   mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
-         trashID = "Mr")
+         trashID = "Mr",
+         year = as.numeric(year))|>
+  select(-x15,-x16)
 
 #Use a similar process to import, clean, and organize the data for Professor Trash Wheel and Gwynnda
 professor_trash = 
-  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 2 ,range = "A2:M97") |>
+  readxl::read_excel("./data/202309 Trash Wheel Collection Data.xlsx", sheet = 2 ) |>
   janitor::clean_names() |>
   drop_na(dumpster)|>
   mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
-         trashID = "professor")
+         trashID = "professor",
+         year = as.numeric(year))
 
 gwynnda_trash = 
-  readxl::read_excel("./data/202207 Trash Wheel Collection Data.xlsx", sheet = 4 ,range = "A2:K110") |>
+  readxl::read_excel("./data/202309 Trash Wheel Collection Data.xlsx", sheet = 4) |>
   janitor::clean_names() |>
   drop_na(dumpster)|>
   mutate(homes_powered = round ((weight_tons * 500) / 30, 0),
-         trashID = "gwynnda")
+         trashID = "gwynnda",
+         year = as.numeric(year))
 
-#finding same columns in three dataset
-common_col = Reduce(intersect, list(names(Mr_trash), names(professor_trash), names(gwynnda_trash)))
-
-#merge three dataset by same columns to a single tidy data
-merge_trash = merge(Mr_trash, professor_trash, by= common_col,all = TRUE) 
-merge_trash = merge(merge_trash, gwynnda_trash, by = common_col, all = TRUE)|>
-  janitor::clean_names()
+merge_trash = bind_rows(Mr_trash, professor_trash,gwynnda_trash)
 ```
 
 ### Description 
 
-Three datasets are involved in Problem 2, including *"Mr."*, *"Professor"* and *"Gwynnda"* Trash Wheel. Which containing `r nrow(Mr_trash)`, `r nrow(professor_trash)`, and `r nrow(gwynnda_trash)` observations respectively. Moreover, there are `r length(common_col)` common variables involved in these three datasets, such as
+Three datasets are involved in Problem 2, including *"Mr."*, *"Professor"* and *"Gwynnda"* Trash Wheel. Which containing `r nrow(Mr_trash)`, `r nrow(professor_trash)`, and `r nrow(gwynnda_trash)` observations respectively. Moreover, there are common variables involved in these three datasets, such as,
 
 * `month`, `year` and `date` for recording the time.
 * `weight_tons` and `volume_cubic_yards` represent the weights and volumes of the trash.
@@ -151,8 +149,11 @@ mci_baseline_na =
     apoe4 = as.factor(apoe4)
       )
 
-#remove the NA
-mci_baseline = mci_baseline_na |> drop_na(age_at_onset)
+#remove the participates 
+mci_baseline = filter(mci_baseline_na,current_age< age_at_onset| is.na(age_at_onset))
+
+mci_baseline_finall = drop_na(mci_baseline)
+
 ```
 
 ### Data import steps and features
@@ -161,9 +162,9 @@ In order to have a tidy MCI baseline data, firstly, read the raw data from relat
 
 Secondly, `mutate` function was performed to label the sex and APOE4 carrier status for participants, for `sex`, "1" represented "Male" while "0" represented "Female", and for `apoe4`, "1" indicated "APOE4 carrier" while "0" indicated "APOE4 non_carrier". Then these two variables were transformed to factors.  \newline
 
-In addition, as the study was focused on the MCI, participants who did not develop MCI do not meet the stated inclusion criteria and were removed by `drop_na` function. After all cleaning steps, only `r nrow(mci_baseline)` observations remained with `r ncol(mci_baseline)` variables.  \newline
+In addition, as the study was focused on the MCI, participants who did not have MCI at the baseline do not meet the stated inclusion criteria and were removed by `filter` function. After all cleaning steps, only `r nrow(mci_baseline)` observations remained with `r ncol(mci_baseline)` variables. Then filter the participants that did not develop MCI at the end, and finally only `r nrow(mci_baseline_finall)` participants \newline
 
-In conclusion, `r nrow(mci_baseline_na)` participants were recruited, and only `r nrow(mci_baseline)` of these developed MCI. Furthermore, the average baseline age is `r round(mean(pull(mci_baseline,current_age)),2)` and there are `r round(nrow(filter(mci_baseline,sex == "female", apoe4 == "carrier"))/nrow(filter(mci_baseline,sex == "female")) *100,2)`% of women in the study carried APOE4.
+In conclusion, `r nrow(mci_baseline_na)` participants were recruited, and only `r nrow(mci_baseline_finall)` of these developed MCI at the end. Furthermore, the average baseline age is `r round(mean(pull(mci_baseline,current_age)),2)` and there are `r round(nrow(filter(mci_baseline,sex == "female", apoe4 == "carrier"))/nrow(filter(mci_baseline,sex == "female")) *100,2)`% of women in the study carried APOE4.
 
 ### Similarly, import, clean, and tidy the dataset of longitudinally observed biomarker values
 
@@ -172,12 +173,21 @@ In conclusion, `r nrow(mci_baseline_na)` participants were recruited, and only `
 mci_amyloid =
   read_csv("data/mci_amyloid.csv", skip = 1, na = "NA") |>
   janitor::clean_names() |>
-  select(id = study_id, everything())
+  filter(baseline != "Na")|>
+  select(id = study_id , baseline,
+         year2 = time_2, year4 = time_4,year6 = time_6, year8 = time_8, 
+         everything())|>
+  pivot_longer(
+    baseline:year8,
+    names_to = "ob_year", 
+    values_to = "ratio") 
+
+
 ```
 
 ### Data import steps and features
 
-Similarly, `read_csv` was applied to import *amyloid* data and `janitor::clean_names()` function was used to tidy the column names. In addition, in order to compare with baseline data, `study_id` in amyloid data was changed to `id`. For the dataset of longitudinally observed biomarker values, it contains `r nrow(mci_amyloid)` participants and `r ncol(mci_amyloid)` variables, which including `study_id` for each participants and `baseline` that represents the time (years) elapsed since the study baseline to the visit where biomarker Amyloid _ 42/40 ratio was measured.
+Similarly, `read_csv` was applied to import *amyloid* data and `janitor::clean_names()` function was used to tidy the column names. In addition, in order to compare with baseline data, `study_id` in amyloid data was changed to `id`. Then transformed the dataset to long data, and changed `time_` variables to `year_` variables. For the dataset of longitudinally observed biomarker values, it contains `r length(unique(pull(mci_amyloid,id)))` participants and `r ncol(mci_amyloid)` variables, which including `id` for each participants and `baseline` that represents the time (years) elapsed since the study baseline to the visit where biomarker Amyloid _ 42/40 ratio was measured.
 
 ### check difference
 ```{r}
@@ -185,13 +195,16 @@ Similarly, `read_csv` was applied to import *amyloid* data and `janitor::clean_n
 participants_only_in_baseline <- mci_baseline |>
   anti_join(mci_amyloid, by = "id")
 
+
 # Check for participants appearing only in the amyloid dataset
 participants_only_in_amyloid <- mci_amyloid |>
   anti_join(mci_baseline, by = "id")
+
+
 ```
 
 ### Comment 
-Comparing cleaned baseline and amyloid datasets, there are `r nrow(participants_only_in_baseline)` participants appearing only in the baseline data, which are participants with ID "14", "49", "268", and `r nrow(participants_only_in_amyloid)` participants only in amyloid data.
+Comparing cleaned baseline and amyloid datasets, there are `r length(unique(pull(participants_only_in_baseline,id)))` participants appearing only in the baseline data, and `r length(unique(pull(participants_only_in_amyloid,id)))` participants only in amyloid data.
 
 ### merge data
 ```{r}
@@ -204,4 +217,4 @@ write.csv(merge_mci,"data/merge_mci.csv" ,row.names = F)
 ```
 
 ### Description 
-After combining baseline and amyloid data with participants that appearing in both datasets, the merging dataset *"merge_mci"* finally includes `r nrow(merge_mci)` observations with `r ncol(merge_mci)` variables that from two datasets.
+After combining baseline and amyloid data with participants that appearing in both datasets, which is `r length(unique(pull(merge_mci,id)))`, the merging dataset *"merge_mci"* finally includes `r nrow(merge_mci)` observations with `r ncol(merge_mci)` variables that from two datasets.
